@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OCR Upload</title>
+    <style>
+        body {
+            font-family: Arial;
+            margin: 40px;
+        }
+        .card {
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+        }
+        .error {
+            color: red;
+        }
+        .success {
+            color: green;
+        }
+        pre {
+            background: #f4f4f4;
+            padding: 10px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+
+<h2>Upload PDF Files</h2>
+
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <input type="file" name="files" multiple required>
+    <button type="submit">Upload</button>
+</form>
+
+<hr>
+
+{% if error %}
+    <p class="error">{{ error }}</p>
+{% endif %}
+
+{% if results %}
+<h3>Results</h3>
+
+{% for r in results %}
+<div class="card">
+
+    <h4>{{ r.file }}</h4>
+
+    {% if r.error %}
+        <p class="error"><b>Error:</b> {{ r.error }}</p>
+    {% else %}
+
+        <p><b>Document Type:</b> {{ r.doc_type }}</p>
+        <p><b>Confidence Score:</b> {{ r.confidence }}</p>
+
+        <h4>Extracted Text</h4>
+        <pre>{{ r.text }}</pre>
+
+        <h4>Parsed JSON</h4>
+        <pre>{{ r.parsed|safe }}</pre>
+
+        <h4>Validation Errors</h4>
+        {% if r.errors %}
+            <pre class="error">{{ r.errors }}</pre>
+        {% else %}
+            <p class="success">No validation errors </p>
+        {% endif %}
+
+    {% endif %}
+
+</div>
+{% endfor %}
+
+{% endif %}
+
+</body>
+</html>

@@ -1,0 +1,41 @@
+{
+    "insurer_name": "UNITED FIDELITY INSURANCE COMPANY",
+    "tax_invoice_number": "301-24261",
+    "invoice_date": "01/05/2026",
+    "customer_name": "NIKHIL ENAMAKKARAN SADANANDAN",
+    "broker_name": null,
+    "is_promise_broker": false,
+    "policy_number": "30/4021/26A/11063",
+    "policy_type": "MOTOR TPL. GENERAL CAR",
+    "policy_start_date": "01/05/2026",
+    "policy_end_date": "31/05/2027",
+    "premium_currency": "AED",
+    "net_premium": 1049.0,
+    "vat_amount": 42.0,
+    "total": 882.0,
+    "total_premium": 882.0,
+    "net_due": 882.0,
+    "confidence_score": 85.53,
+    "field_confidence": {
+        "insurer_name": 61,
+        "tax_invoice_number": 90,
+        "invoice_date": 92,
+        "customer_name": 96,
+        "broker_name": 12,
+        "is_promise_broker": 29,
+        "policy_number": 95,
+        "policy_type": 79,
+        "policy_start_date": 92,
+        "policy_end_date": 94,
+        "premium_currency": 90,
+        "net_premium": 92,
+        "vat_amount": 95,
+        "total": 97,
+        "total_premium": 91,
+        "net_due": 90
+    },
+    "missing_fields": [
+        "broker_name"
+    ],
+    "extracted_fields_count": 15
+}

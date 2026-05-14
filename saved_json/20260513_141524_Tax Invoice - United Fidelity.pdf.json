@@ -1,0 +1,41 @@
+{
+    "insurer_name": "UNITED FIDELITY INSURANCE COMPANY",
+    "tax_invoice_number": "301-20464",
+    "invoice_date": "09/04/2026",
+    "customer_name": "SHADES SALOON AND SPA",
+    "broker_name": null,
+    "is_promise_broker": false,
+    "policy_number": "30/4001/26A/2131",
+    "policy_type": "MOTOR COMP. GENERAL CAR",
+    "policy_start_date": "09/04/2026",
+    "policy_end_date": "08/05/2027",
+    "premium_currency": "AED",
+    "net_premium": 2366.87,
+    "vat_amount": 118.39,
+    "total": 2486.26,
+    "total_premium": 2486.26,
+    "net_due": 2486.26,
+    "confidence_score": 84.53,
+    "field_confidence": {
+        "insurer_name": 61,
+        "tax_invoice_number": 97,
+        "invoice_date": 91,
+        "customer_name": 96,
+        "broker_name": 12,
+        "is_promise_broker": 29,
+        "policy_number": 94,
+        "policy_type": 72,
+        "policy_start_date": 91,
+        "policy_end_date": 94,
+        "premium_currency": 90,
+        "net_premium": 91,
+        "vat_amount": 90,
+        "total": 91,
+        "total_premium": 91,
+        "net_due": 90
+    },
+    "missing_fields": [
+        "broker_name"
+    ],
+    "extracted_fields_count": 15
+}

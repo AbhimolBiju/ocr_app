@@ -1,0 +1,41 @@
+{
+    "insurer_name": "UNITED FIDELITY INSURANCE COMPANY",
+    "tax_invoice_number": "301-18611",
+    "invoice_date": "01/04/2026",
+    "customer_name": "NAFSAL NAVABUDEEN NAVABUDEEN",
+    "broker_name": null,
+    "is_promise_broker": false,
+    "policy_number": "30/4001/26A/1859",
+    "policy_type": "MOTOR COMP. GENERAL CAR",
+    "policy_start_date": "30/03/2026",
+    "policy_end_date": "29/04/2027",
+    "premium_currency": "AED",
+    "net_premium": 1600.0,
+    "vat_amount": 80.0,
+    "total": 1680.0,
+    "total_premium": 1680.0,
+    "net_due": 1680.0,
+    "confidence_score": 86.6,
+    "field_confidence": {
+        "insurer_name": 61,
+        "tax_invoice_number": 95,
+        "invoice_date": 95,
+        "customer_name": 95,
+        "broker_name": 12,
+        "is_promise_broker": 29,
+        "policy_number": 95,
+        "policy_type": 72,
+        "policy_start_date": 93,
+        "policy_end_date": 93,
+        "premium_currency": 90,
+        "net_premium": 97,
+        "vat_amount": 95,
+        "total": 97,
+        "total_premium": 96,
+        "net_due": 96
+    },
+    "missing_fields": [
+        "broker_name"
+    ],
+    "extracted_fields_count": 15
+}
