@@ -192,11 +192,27 @@ def unify_parsed_tax_invoice(mixed):
         # ---------------------------------------------------
         elif k == "is_promise_broker":
 
-            val = (
-                bool(val)
-                if val is not None
-                else False
-            )
+            # explicit parser value
+            if val is not None:
+
+                val = bool(val)
+
+            else:
+
+                broker = values.get("broker_name")
+
+                if isinstance(broker, str):
+
+                    broker_l = broker.lower()
+
+                    val = (
+                        "promise insurance" in broker_l
+                        or "promiseinsure" in broker_l
+                    )
+
+                else:
+
+                    val = False
 
         # ---------------------------------------------------
         # STRING CLEANUP

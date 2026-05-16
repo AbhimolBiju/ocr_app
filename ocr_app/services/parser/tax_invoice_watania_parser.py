@@ -185,7 +185,8 @@ class WataniaTaxInvoiceParser:
                 self._confidence_with_label(
                     data["policy_start_date"],
                     [
-                        r"Period\s+of",
+                        r"period\s+of",
+                        r"Policy\s+Period",
                     ]
                 ),
 
@@ -193,7 +194,8 @@ class WataniaTaxInvoiceParser:
                 self._confidence_with_label(
                     data["policy_end_date"],
                     [
-                        r"Period\s+of",
+                        r"period\s+of",
+                        r"Policy\s+Period",
                     ]
                 ),
 
@@ -203,6 +205,7 @@ class WataniaTaxInvoiceParser:
                     [
                         r"Total\s+Commission",
                         r"Commission\s+Amount\s+Due",
+                        r"Total\s+Contribution",
                     ]
                 ),
 
@@ -218,7 +221,9 @@ class WataniaTaxInvoiceParser:
                 self._confidence_with_label(
                     data["total"],
                     [
+                        r"Grand\s+Total",
                         r"Total\s+Amount\s+Payable",
+                        r"Total\s+[\\d,]+\\.\\d+\\s+AED",
                     ]
                 ),
         }
@@ -234,7 +239,6 @@ class WataniaTaxInvoiceParser:
 
         patterns = [
 
-            # PRIORITY → ACTUAL DOCUMENT NUMBER
             r"Document\s+No\.\s*:\s*([A-Z0-9\-]+)",
 
             r"Original\s+Tax\s+Invoice\s+No\.\s*:\s*([A-Z0-9\-]+)",
@@ -434,28 +438,54 @@ class WataniaTaxInvoiceParser:
     # ---------------------------------------------------
     def _extract_policy_period(self):
 
-        match = re.search(
+        text = re.sub(
+            r"\s+",
+            " ",
+            self.text
+        )
+
+        patterns = [
+
+            r"for\s+the\s+period\s+of\s+"
+            r"(\d{2}/\d{2}/\d{4})\s+to\s+"
+            r"(\d{2}/\d{2}/\d{4})",
+
             r"period\s+of\s+insurance.*?"
             r"(\d{2}/\d{2}/\d{4}).*?"
             r"(\d{2}/\d{2}/\d{4})",
-            self.text,
-            re.IGNORECASE | re.DOTALL
-        )
 
-        if match:
+            r"policy\s+period.*?"
+            r"(\d{2}/\d{2}/\d{4}).*?"
+            r"(\d{2}/\d{2}/\d{4})",
+        ]
 
-            return (
+        for pattern in patterns:
 
-                match.group(1).strip(),
-
-                match.group(2).strip()
-
+            match = re.search(
+                pattern,
+                text,
+                re.IGNORECASE | re.DOTALL
             )
+
+            if match:
+
+                start_date = (
+                    match.group(1).strip()
+                )
+
+                end_date = (
+                    match.group(2).strip()
+                )
+
+                return (
+                    start_date,
+                    end_date
+                )
 
         return None, None
 
     # ---------------------------------------------------
-    # AMOUNT EXTRACTION
+    # AMOUNT EXTRACTION (FIXED)
     # ---------------------------------------------------
     def _extract_amounts(self):
 
@@ -483,6 +513,8 @@ class WataniaTaxInvoiceParser:
             r"Commission\s+Amount\s+Due\s*:?\s*([\d,]+\.\d+)",
 
             r"Total\s+Contribution\s*:?\s*([\d,]+\.\d+)",
+
+            r"Contribution\s+Amount\s*:?\s*([\d,]+\.\d+)",
 
         ]
 
@@ -540,31 +572,36 @@ class WataniaTaxInvoiceParser:
                     pass
 
         # ---------------------------------------------------
-        # TOTAL
+        # TOTAL (FIXED)
         # ---------------------------------------------------
-        patterns = [
+        total_patterns = [
+
+            r"Total\s+([\d,]+\.\d+)\s*AED",
+
+            r"Grand\s+Total\s+([\d,]+\.\d+)",
 
             r"Total\s+Amount\s+Payable\s*([\d,]+\.\d+)",
 
-            r"Grand\s+Total\s*([\d,]+\.\d+)",
-
         ]
 
-        for pattern in patterns:
+        for pattern in total_patterns:
 
-            match = re.search(
+            matches = re.findall(
                 pattern,
                 text,
                 re.IGNORECASE
             )
 
-            if match:
+            if matches:
 
                 try:
 
-                    result["total"] = float(
-                        match.group(1).replace(",", "")
-                    )
+                    values = [
+                        float(x.replace(",", ""))
+                        for x in matches
+                    ]
+
+                    result["total"] = max(values)
 
                     break
 
@@ -572,7 +609,7 @@ class WataniaTaxInvoiceParser:
                     pass
 
         # ---------------------------------------------------
-        # FALLBACK TOTAL
+        # FINAL FALLBACK
         # ---------------------------------------------------
         if (
             result["total"] is None

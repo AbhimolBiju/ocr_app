@@ -101,7 +101,7 @@ class AllianceTaxInvoiceParser:
         data["is_promise_broker"] = wrap(
             bool(
                 broker
-                and "promise insurance" in broker.lower()
+                and "promise" in broker.lower()
             ),
             "high" if broker else "low",
             "promise",
@@ -227,9 +227,65 @@ class AllianceTaxInvoiceParser:
     # ---------------------------------------------------
     def _extract_customer_name(self):
 
-        patterns = [
+        # ---------------------------------------------
+        # STRICT LINE-BASED EXTRACTION
+        # ---------------------------------------------
+        for i, line in enumerate(self.lines):
 
-            r"Insured\s*:?\s*([^\n\r]+)",
+            if line.strip().lower() == "insured":
+
+                collected = []
+
+                for j in range(
+                    i + 1,
+                    min(i + 5, len(self.lines))
+                ):
+
+                    candidate = self.lines[j].strip()
+
+                    # skip OCR junk
+                    if candidate in [":", ".", ".."]:
+                        continue
+
+                    # stop at next field
+                    if re.search(
+                        r"^(Dept|Department|Address|Agent|Unit|Client\s*TRN|Policy|Date)\b",
+                        candidate,
+                        re.IGNORECASE,
+                    ):
+                        break
+
+                    # ignore tiny garbage
+                    if len(candidate) < 3:
+                        continue
+
+                    collected.append(candidate)
+
+                if collected:
+
+                    value = " ".join(collected)
+
+                    value = re.sub(
+                        r"\s+",
+                        " ",
+                        value,
+                    ).strip()
+
+                    value = re.split(
+                        r"(Motor Insurance|TRN|VAT|Invoice|Policy)",
+                        value,
+                        flags=re.IGNORECASE,
+                    )[0].strip()
+
+                    value = value.strip(" :-")
+
+                    if len(value) > 3:
+                        return value
+
+        # ---------------------------------------------
+        # FALLBACKS
+        # ---------------------------------------------
+        patterns = [
 
             r"Customer\s*Name\s*:?\s*([^\n\r]+)",
 
@@ -254,11 +310,7 @@ class AllianceTaxInvoiceParser:
                     value,
                 )
 
-                value = re.split(
-                    r"(policy|invoice|date|vat)",
-                    value,
-                    flags=re.IGNORECASE,
-                )[0].strip()
+                value = value.strip(" :-")
 
                 if len(value) > 2:
                     return value
@@ -270,53 +322,45 @@ class AllianceTaxInvoiceParser:
     # ---------------------------------------------------
     def _extract_broker_name(self):
 
-        labels = [
+        patterns = [
 
-            "Broker",
-            "Broker Name",
-            "Agent",
-            "Agent/Broker",
+            r"Agent/Broker\s*:?\s*([^\n\r]+)",
+
+            r"Account\s*Holder\s*:?\s*([^\n\r]+)",
+
+            r"Broker\s*Name\s*:?\s*([^\n\r]+)",
+
+            r"Broker\s*:?\s*([^\n\r]+)",
+
+            r"Agent\s*:?\s*([^\n\r]+)",
         ]
 
-        for i, line in enumerate(self.lines):
+        for pattern in patterns:
 
-            for label in labels:
+            match = re.search(
+                pattern,
+                self.text,
+                re.IGNORECASE,
+            )
 
-                if re.search(label, line, re.IGNORECASE):
+            if match:
 
-                    inline = re.split(
-                        rf"{label}\s*:?",
-                        line,
-                        maxsplit=1,
-                        flags=re.IGNORECASE,
-                    )
+                value = match.group(1)
 
-                    if len(inline) > 1:
+                value = re.sub(
+                    r"\s+",
+                    " ",
+                    value,
+                ).strip(" :-")
 
-                        value = inline[1].strip(" :-")
+                value = re.split(
+                    r"(TRN|Address|Department|Date|Policy)",
+                    value,
+                    flags=re.IGNORECASE,
+                )[0].strip()
 
-                        if (
-                            value
-                            and len(value) > 2
-                        ):
-                            return value
-
-                    for j in range(
-                        i + 1,
-                        min(i + 5, len(self.lines))
-                    ):
-
-                        cand = self.lines[j]
-
-                        if re.search(
-                            r"(policy|invoice|date|premium|vat)",
-                            cand,
-                            re.IGNORECASE,
-                        ):
-                            break
-
-                        if len(cand) > 2:
-                            return cand
+                if len(value) > 3:
+                    return value
 
         return None
 
@@ -326,6 +370,10 @@ class AllianceTaxInvoiceParser:
     def _extract_policy_number(self):
 
         patterns = [
+
+            r"Ref\.\s*Policy\s*#\s*([A-Z0-9/\-]+)",
+
+            r"Policy\s*No\.?\s*/?\s*Year\s*:?\s*([A-Z0-9/\-]+)",
 
             r"Policy\s*No\.?\s*:?\s*([A-Z0-9/\-]+)",
 
@@ -376,9 +424,15 @@ class AllianceTaxInvoiceParser:
 
             r"Policy\s*Type\s*:?\s*([^\n\r]+)",
 
-            r"Class\s*:\s*([^\n\r]+)",
+            r"Policy\s*Class\s*:?\s*([^\n\r]+)",
+
+            r"Class\s*:?\s*([^\n\r]+)",
 
             r"Insurance\s*Type\s*:?\s*([^\n\r]+)",
+
+            r"Dept\s*:?\s*([^\n\r]+)",
+
+            r"Department\s*:?\s*([^\n\r]+)",
         ]
 
         for pattern in patterns:
@@ -392,6 +446,18 @@ class AllianceTaxInvoiceParser:
             if match:
 
                 value = match.group(1).strip()
+
+                value = re.split(
+                    r"(Discount|Period|Vehicle|Description|Address|Agent|Unit)",
+                    value,
+                    flags=re.IGNORECASE,
+                )[0].strip(" :-")
+
+                value = re.sub(
+                    r"\s+",
+                    " ",
+                    value,
+                ).strip()
 
                 if (
                     value
@@ -409,7 +475,7 @@ class AllianceTaxInvoiceParser:
         for i, line in enumerate(self.lines):
 
             if re.search(
-                r"(policy\s*period|period\s*of\s*insurance)",
+                r"(policy\s*period|period\s*of\s*insurance|period\s*of\s*cover)",
                 line,
                 re.IGNORECASE,
             ):
@@ -457,7 +523,9 @@ class AllianceTaxInvoiceParser:
 
         patterns = [
 
-            r"Invoice\s*Ref\s*No\.?\s*:?\s*([A-Z0-9/\-]+)",
+            r"Ref\.?\s*Invoice\s*#\s*([A-Z0-9/\-]+)",
+
+            r"Invoice\s*Ref\.?\s*No\.?\s*:?\s*([A-Z0-9/\-]+)",
 
             r"Invoice\s*No\.?\s*:?\s*([A-Z0-9/\-]+)",
 
@@ -520,65 +588,49 @@ class AllianceTaxInvoiceParser:
             "total": None,
         }
 
-        text = self.text
+        def clean(x):
+            return float(
+                x.replace(",", "").strip()
+            )
 
-        # ---------------------------------------------------
-        # VAT
-        # ---------------------------------------------------
         vat_match = re.search(
-            r"VAT\s*(?:Amount)?\s*:?\s*([\d,]+\.\d+)",
-            text,
+            r"VAT\s*@?\s*5\s*%?\s*:?\s*([\d,]+\.\d{2})",
+            self.text,
             re.IGNORECASE,
         )
 
         if vat_match:
 
-            result["vat_amount"] = float(
-                vat_match.group(1).replace(",", "")
+            result["vat_amount"] = clean(
+                vat_match.group(1)
             )
 
-        # ---------------------------------------------------
-        # NET PREMIUM
-        # ---------------------------------------------------
-        premium_match = re.search(
-            r"(?:Net\s*Premium|Premium)\s*:?\s*([\d,]+\.\d+)",
-            text,
-            re.IGNORECASE,
+        numbers = re.findall(
+            r"([\d,]+\.\d{2})",
+            self.text
         )
 
-        if premium_match:
+        cleaned = []
 
-            result["net_premium"] = float(
-                premium_match.group(1).replace(",", "")
-            )
+        for n in numbers:
 
-        # ---------------------------------------------------
-        # TOTAL
-        # ---------------------------------------------------
-        total_match = re.search(
-            r"(?:Total|Gross\s*Premium|Amount\s*Due)\s*:?\s*([\d,]+\.\d+)",
-            text,
-            re.IGNORECASE,
-        )
+            try:
+                cleaned.append(clean(n))
+            except:
+                pass
 
-        if total_match:
+        if cleaned:
 
-            result["total"] = float(
-                total_match.group(1).replace(",", "")
-            )
+            result["total"] = cleaned[-1]
 
-        # ---------------------------------------------------
-        # FALLBACK
-        # ---------------------------------------------------
         if (
-            result["total"] is None
-            and result["net_premium"] is not None
+            result["total"] is not None
             and result["vat_amount"] is not None
         ):
 
-            result["total"] = round(
-                result["net_premium"]
-                + result["vat_amount"],
+            result["net_premium"] = round(
+                result["total"]
+                - result["vat_amount"],
                 2
             )
 

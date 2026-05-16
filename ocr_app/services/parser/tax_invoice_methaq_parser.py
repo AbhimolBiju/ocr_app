@@ -31,14 +31,23 @@ class MethaqTaxInvoiceParser:
         data["insurer_name"] = w("Methaq", "high", "insurer")
 
         invoice_date = self._extract_invoice_date()
-        data["invoice_date"] = w(invoice_date, "high" if invoice_date else "missing", "idate")
+        data["invoice_date"] = w(
+            invoice_date,
+            "high" if invoice_date else "missing",
+            "idate"
+        )
 
         # -------------------------
-        # CUSTOMER NAME (FINAL FIX)
+        # CUSTOMER NAME
         # -------------------------
         customer_name = self._extract_customer_name()
+
         if customer_name:
-            customer_name = re.sub(r"\s+", " ", customer_name).strip(": ").strip()
+            customer_name = re.sub(
+                r"\s+",
+                " ",
+                customer_name
+            ).strip(": ").strip()
 
         data["customer_name"] = w(
             customer_name,
@@ -47,22 +56,51 @@ class MethaqTaxInvoiceParser:
         )
 
         broker_name = self._extract_broker_name()
-        data["broker_name"] = w(broker_name, "high" if broker_name else "missing", "brok")
+
+        data["broker_name"] = w(
+            broker_name,
+            "high" if broker_name else "missing",
+            "brok"
+        )
 
         policy_number = self._extract_policy_number()
-        data["policy_number"] = w(policy_number, "high" if policy_number else "missing", "pol")
+
+        data["policy_number"] = w(
+            policy_number,
+            "high" if policy_number else "missing",
+            "pol"
+        )
 
         tax_invoice = self._extract_invoice_number()
-        data["tax_invoice_number"] = w(tax_invoice, "high" if tax_invoice else "missing", "taxno")
+
+        data["tax_invoice_number"] = w(
+            tax_invoice,
+            "high" if tax_invoice else "missing",
+            "taxno"
+        )
 
         start_date, end_date = self._extract_policy_period()
-        data["policy_start_date"] = w(start_date, "high" if start_date else "missing", "ps")
-        data["policy_end_date"] = w(end_date, "high" if end_date else "missing", "pe")
 
-        data["premium_currency"] = w("AED", "high", "cur")
+        data["policy_start_date"] = w(
+            start_date,
+            "high" if start_date else "missing",
+            "ps"
+        )
+
+        data["policy_end_date"] = w(
+            end_date,
+            "high" if end_date else "missing",
+            "pe"
+        )
+
+        data["premium_currency"] = w(
+            "AED",
+            "high",
+            "cur"
+        )
 
         # -------------------------
-        # POLICY TYPE (FIXED ONLY HERE)
+        # POLICY TYPE
         # -------------------------
         policy_type = self._extract_policy_type()
 
@@ -72,14 +110,21 @@ class MethaqTaxInvoiceParser:
             "ptype"
         )
 
+        # -------------------------
+        # AMOUNTS
+        # -------------------------
         amounts = self._extract_amounts()
 
         def amt(v, salt):
-            return w(v, "high" if v is not None else "missing", salt)
+            return w(
+                v,
+                "high" if v is not None else "missing",
+                salt
+            )
 
-        net_premium = amounts.get("net_premium") or 622.0
-        vat_amount = amounts.get("vat_amount") or 31.1
-        total = amounts.get("total") or 653.1
+        net_premium = amounts.get("net_premium")
+        vat_amount = amounts.get("vat_amount")
+        total = amounts.get("total")
 
         data["net_premium"] = amt(net_premium, "netp")
         data["vat_amount"] = amt(vat_amount, "vat")
@@ -94,37 +139,53 @@ class MethaqTaxInvoiceParser:
         return finalize_tax_invoice_output(data)
 
     # ---------------------------------------------------
-    # POLICY TYPE (ONLY FIXED PART)
+    # POLICY TYPE
     # ---------------------------------------------------
     def _extract_policy_type(self):
 
-        # 1. STRICT LINE-BOUND EXTRACTION (FIXED)
+        # line-based extraction
         for line in self.lines:
+
             if "policy type" in line.lower():
+
                 parts = line.split(":")
+
                 if len(parts) > 1:
+
                     val = parts[1].strip()
 
-                    # 🔥 HARD CLEAN (prevents "Third Party\nNet due to you")
                     val = val.split("\n")[0]
-                    val = re.split(r"\b(Net\s*due|Amount|Premium|Authorised)\b", val, flags=re.IGNORECASE)[0]
+
+                    val = re.split(
+                        r"\b(Net\s*due|Amount|Premium|Authorised|AED)\b",
+                        val,
+                        flags=re.IGNORECASE
+                    )[0]
+
                     val = val.strip(" :-\t")
 
                     if len(val) > 2:
                         return val
 
-        # 2. GLOBAL FALLBACK (SAFE BOUNDARY FIX)
+        # fallback extraction
         m = re.search(
             r"Policy\s*Type\s*:?\s*([A-Za-z\s\-]+)",
             self.text,
             re.IGNORECASE
         )
+
         if m:
+
             val = m.group(1)
 
-            # 🔥 SAME CLEANING RULES
             val = val.split("\n")[0]
-            val = re.split(r"\b(Net\s*due|Amount|Premium|Authorised)\b", val, flags=re.IGNORECASE)[0]
+
+            val = re.split(
+                r"\b(Net\s*due|Amount|Premium|Authorised|AED)\b",
+                val,
+                flags=re.IGNORECASE
+            )[0]
+
             val = val.strip(" :-\t")
 
             if len(val) > 2:
@@ -133,46 +194,86 @@ class MethaqTaxInvoiceParser:
         return None
 
     # ---------------------------------------------------
-    # CUSTOMER NAME (BLOCK SAFE VERSION - FINAL FIX)
+    # CUSTOMER NAME (FIXED)
     # ---------------------------------------------------
     def _extract_customer_name(self):
 
         text = self.text
 
+        # -----------------------------------
+        # CASE 1 : PARTICIPANT NAME
+        # (Debit Note documents)
+        # -----------------------------------
         m = re.search(
-            r"Participant\s*Name\s*:?\s*([A-Z0-9 &\.\-]+)",
+            r"Participant\s*Name\s*:?\s*([^\n\r]+)",
             text,
             re.IGNORECASE
         )
+
         if m:
+
             val = m.group(1).strip()
-            if len(val) > 3 and "policy" not in val.lower():
+
+            # hard cleanup
+            val = re.split(
+                r"(Insurance\s*Policy|Methaq\s*reference|Period\s*of\s*Insurance|Policy\s*Type)",
+                val,
+                flags=re.IGNORECASE
+            )[0]
+
+            val = val.strip(" :-")
+
+            if len(val) > 3:
                 return val
 
-        for i, line in enumerate(self.lines):
+        # -----------------------------------
+        # CASE 2 : TO:
+        # (Tax Invoice documents)
+        # -----------------------------------
+        m = re.search(
+            r"To\s*:\s*([^\n\r]+)",
+            text,
+            re.IGNORECASE
+        )
 
-            if "participant name" in line.lower():
+        if m:
 
-                for j in range(i + 1, min(i + 5, len(self.lines))):
+            val = m.group(1).strip()
 
-                    cand = self.lines[j].strip()
+            val = re.split(
+                r"(TRN|Insured|Email|Tel)",
+                val,
+                flags=re.IGNORECASE
+            )[0]
 
-                    if not cand:
-                        continue
+            val = val.strip(" :-")
 
-                    if re.match(r"^[A-Za-z\s]+:", cand):
-                        break
+            if len(val) > 3:
+                return val
 
-                    if any(x in cand.lower() for x in [
-                        "policy", "insurance", "doc", "branch",
-                        "amount", "vat", "net", "www"
-                    ]):
-                        continue
+        # -----------------------------------
+        # CASE 3 : INSURED:
+        # -----------------------------------
+        m = re.search(
+            r"Insured\s*:?\s*([^\n\r]+)",
+            text,
+            re.IGNORECASE
+        )
 
-                    if not re.search(r"[A-Z]{3,}", cand):
-                        continue
+        if m:
 
-                    return cand
+            val = m.group(1).strip()
+
+            val = re.split(
+                r"(TRN|Email|Tel)",
+                val,
+                flags=re.IGNORECASE
+            )[0]
+
+            val = val.strip(" :-")
+
+            if len(val) > 3:
+                return val
 
         return None
 
@@ -182,14 +283,21 @@ class MethaqTaxInvoiceParser:
     def _extract_invoice_number(self):
 
         patterns = [
+            r"Invoice\s*Number\s*:?\s*([A-Z0-9/\-]+)",
             r"Doc\s*Number\s*:?\s*([A-Z0-9/\-]+)",
             r"Debit\s*Note\s*([A-Z0-9/\-]+)",
         ]
 
         for p in patterns:
-            m = re.search(p, self.text, re.IGNORECASE)
+
+            m = re.search(
+                p,
+                self.text,
+                re.IGNORECASE
+            )
+
             if m:
-                return m.group(1)
+                return m.group(1).strip()
 
         return None
 
@@ -198,8 +306,23 @@ class MethaqTaxInvoiceParser:
     # ---------------------------------------------------
     def _extract_invoice_date(self):
 
-        m = re.search(r"Doc\s*Date\s*:?\s*(\d{1,2}[-/]\d{1,2}[-/]\d{4})", self.text)
-        return normalize_date(m.group(1)) if m else None
+        patterns = [
+            r"Issue\s*Date\s*:?\s*(\d{1,2}[-/]\d{1,2}[-/]\d{4})",
+            r"Doc\s*Date\s*:?\s*(\d{1,2}[-/]\d{1,2}[-/]\d{4})",
+        ]
+
+        for p in patterns:
+
+            m = re.search(
+                p,
+                self.text,
+                re.IGNORECASE
+            )
+
+            if m:
+                return normalize_date(m.group(1))
+
+        return None
 
     # ---------------------------------------------------
     # POLICY PERIOD
@@ -207,13 +330,17 @@ class MethaqTaxInvoiceParser:
     def _extract_policy_period(self):
 
         m = re.search(
-            r"From\s*:?\s*(\d{1,2}[-/]\w+[-/]\d{4}).{0,60}To\s*:?\s*(\d{1,2}[-/]\w+[-/]\d{4})",
+            r"From\s*:?\s*(\d{1,2}[-/]\w+[-/]\d{4}).{0,80}?To\s*:?\s*(\d{1,2}[-/]\w+[-/]\d{4})",
             self.text,
-            re.DOTALL
+            re.DOTALL | re.IGNORECASE
         )
 
         if m:
-            return normalize_date(m.group(1)), normalize_date(m.group(2))
+
+            start_date = normalize_date(m.group(1))
+            end_date = normalize_date(m.group(2))
+
+            return start_date, end_date
 
         return None, None
 
@@ -222,31 +349,132 @@ class MethaqTaxInvoiceParser:
     # ---------------------------------------------------
     def _extract_policy_number(self):
 
-        m = re.search(r"Insurance\s*Policy\s*No\s*:?\s*([A-Z0-9/\-]+)", self.text)
-        return m.group(1) if m else None
+        patterns = [
+            r"Insurance\s*Policy\s*No\s*:?\s*([A-Z0-9/\-]+)",
+            r"Policy\s*No\s*:?\s*([A-Z0-9/\-]+)",
+        ]
+
+        for p in patterns:
+
+            m = re.search(
+                p,
+                self.text,
+                re.IGNORECASE
+            )
+
+            if m:
+                return m.group(1).strip()
+
+        return None
 
     # ---------------------------------------------------
     # BROKER
     # ---------------------------------------------------
     def _extract_broker_name(self):
 
-        m = re.search(r"Intermediary\s*Name\s*:?\s*([^\n\r]+)", self.text)
-        return m.group(1).strip() if m else None
+        patterns = [
+            r"Intermediary\s*Name\s*:?\s*([^\n\r]+)",
+            r"Producer\s*:?\s*([^\n\r]+)",
+        ]
+
+        for p in patterns:
+
+            m = re.search(
+                p,
+                self.text,
+                re.IGNORECASE
+            )
+
+            if m:
+
+                val = m.group(1).strip()
+
+                if len(val) > 2:
+                    return val
+
+        return None
 
     # ---------------------------------------------------
-    # AMOUNTS
+    # AMOUNTS (FIXED)
     # ---------------------------------------------------
     def _extract_amounts(self):
 
         result = {}
 
-        m = re.search(r"Net\s*due\s*to\s*you\s*([\d.]+)", self.text)
-        if m:
-            result["total"] = float(m.group(1))
+        def clean_number(x):
 
-        numbers = re.findall(r"(\d+\.\d{2,3})", self.text)
-        if len(numbers) >= 2:
-            result["net_premium"] = float(numbers[0])
-            result["vat_amount"] = float(numbers[1])
+            try:
+                return round(
+                    float(x.replace(",", "").strip()),
+                    2
+                )
+            except:
+                return None
+
+        # -----------------------------------
+        # TOTAL / NET DUE
+        # -----------------------------------
+        m = re.search(
+            r"Net\s*due\s*to\s*you\s*:?\s*([\d,]+\.\d{2,3})",
+            self.text,
+            re.IGNORECASE
+        )
+
+        if m:
+
+            total = clean_number(m.group(1))
+
+            if total is not None:
+                result["total"] = total
+
+        # -----------------------------------
+        # PREMIUM + VAT
+        # -----------------------------------
+        m = re.search(
+            r"Being\s*Policy\s*Contribution\s*VAT\s*5%\s*([\d,]+\.\d{2,3})\s+([\d,]+\.\d{2,3})",
+            self.text,
+            re.IGNORECASE
+        )
+
+        if m:
+
+            premium = clean_number(m.group(1))
+            vat = clean_number(m.group(2))
+
+            if premium is not None:
+                result["net_premium"] = premium
+
+            if vat is not None:
+                result["vat_amount"] = vat
+
+        # -----------------------------------
+        # FALLBACK
+        # -----------------------------------
+        if (
+            "net_premium" not in result
+            or "vat_amount" not in result
+        ):
+
+            numbers = re.findall(
+                r"([\d,]+\.\d{2,3})",
+                self.text
+            )
+
+            cleaned = []
+
+            for n in numbers:
+
+                val = clean_number(n)
+
+                if val is not None:
+                    cleaned.append(val)
+
+            if len(cleaned) >= 2:
+
+                if "net_premium" not in result:
+                    result["net_premium"] = cleaned[0]
+
+                if "vat_amount" not in result:
+                    result["vat_amount"] = cleaned[1]
 
         return result
